@@ -1,0 +1,63 @@
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date:    13:54:53 10/28/2014 
+-- Design Name: 
+-- Module Name:    SR_LATCH - Behavioral 
+-- Project Name: 
+-- Target Devices: 
+-- Tool versions: 
+-- Description: 
+--
+-- Dependencies: 
+--
+-- Revision: 
+-- Revision 0.01 - File Created
+-- Additional Comments: 
+--
+----------------------------------------------------------------------------------
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx primitives in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
+
+entity SR_LATCH is
+    Port ( CSR : in  std_logic_vector(2 downto 0);
+           Q : in  STD_LOGIC;
+           Qout : out  STD_LOGIC;
+           Q_out : out  STD_LOGIC
+           );
+end SR_LATCH;
+
+architecture Behavioral of SR_LATCH is
+
+signal Q_loc: std_logic;
+
+begin
+
+
+
+with CSR select
+Q_loc <=  '0' when "101",
+			 '1' when "110",
+			 '0' when "111",
+			  Q when others; --Alle Möglichkeiten zum Speichern werden hier abgefangen
+
+
+--In der Select anweisung muss auf Q_loc geschrieben werden um später Dann die Zeile Q_+ <= not Q_loc zu realisieren, da man hier auf das lokale Signal zugreifen möchte. Würde man oben
+--in der Select anweisung auf den Ausgang Q+ schon schreiben wäre es nicht möglich diesen dann unter Q_+ <= not Q+ zu verwenden da von Ausgängen nicht gelesen werden kann
+--Qout <= Q_loc;
+Q_out <= not Q_loc;
+
+
+
+end Behavioral;
+
