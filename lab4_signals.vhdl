@@ -46,6 +46,7 @@ signal STRB: STD_LOGIC := '0';
 signal ERR: STD_LOGIC := '0';
 signal ERROR: STD_LOGIC := '0';
 signal loc_DATA: std_logic_vector(7 downto 0);
+signal UP_ERR: STD_LOGIC := '0';
 begin
 
 
@@ -66,9 +67,20 @@ if rising_edge(CLK) then
 	--DATEN SAMMELN
 	if(SR(0) = '0' and SR(1) = '1' and SPI_CS = '0') then 
 		PRF <= PRF + 1;
-		loc_DATA <= loc_DATA(6 downto 0) & SPI_DIN;
+		
+		loc_DATA <= loc_DATA(6 downto 0) & SPI_DIN; --DATEN einlesen
 		STRB <= '1';
 		ERR <= '0'; --Freigeben vom Errorfall für die überprüfung auf steigende Flanke
+	
+			--Error ausgeben wenn '8' überschritten wird beim hochzählen!
+		if(PRF = "1001" and UP_ERR = '0') then
+			o_ERR <= '1'; 
+			UP_ERR <= '1';
+			loc_DATA <= "00000000"; --Data clearen
+		else
+			o_ERR <= '0';
+		end if;
+	
 	
 	end if; --datensammeln ende
 	
@@ -79,32 +91,34 @@ if rising_edge(CLK) then
 		if(ERR = '0') then
 			ERROR <= '1';
 			o_ERR <= ERROR;		
-			ERR <= '1'; --sperren für weitere steigende Flanken
-			--o_STRB <= '0'; --TO-DO: STROBE AUF NULL SETZEN WENN ERROR FALL KOMMT 
+			ERR <= '1'; 
+			o_STRB <= '0';
 		else
 			ERROR <= '0';
 			o_ERR <= ERROR;	
+			
+			if(STRB = '1' and PRF = "1000") then
+				o_STRB <= '1';
+				STRB <= '0';
+			else
+				o_STRB <= '0';
+			end if;
 		end if; --END ERROR
-		
 		
 		if( PRF = "1000") then --Checksumme prüfen
 			o_DATA <= loc_DATA;
 			ERROR <= '0';
-			o_ERR <= ERROR; --keinen Fehler gefunden	
+			o_ERR <= '0'; --keinen Fehler gefunden	
 		end if;		
 		
-		--STROBE SETZEN
-		if(STRB = '1') then
-			o_STRB <= not ERROR;
-			STRB <= '0'; --sperren für weitere Flanken
-		end if;
-			
+
 		
 		PRF <= "0000"; --Zähler rücksetzen
-		
-		
-		
+				
 end if; --ende steigende Flanke
+
+
+
 
 end if; --rising-edge ende
 end process SLAVE;
