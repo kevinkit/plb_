@@ -41,16 +41,16 @@ entity TOP is
            i_DOOR_STAT : in  STD_LOGIC_VECTOR (1 downto 0); --TürStatus "00" -> In bewegung, "10" geschlossen, "01" offen
            i_RST : in  STD_LOGIC; --Resetsignal - beim einschalten kurzzeiteig auf 1 __WIESO?
            CLK : in  STD_LOGIC; -- Systemtakt: 1MHz
-           o_MOTOR_DIR : out  STD_LOGIC; --Richtungsangabe 1 -> hoch 0 -> runter
-           o_MOTOR_EN : out  STD_LOGIC; --Motor an/aus
-           o_DOOR_DIR : out  STD_LOGIC; --Tür richtung 1 -> schließen , 0 -> öffnen
-           o_DOOR_EN : out  STD_LOGIC); --Tür öffnen/schließen
+           o_MOTOR_DIR : out  STD_LOGIC := '1'; --Richtungsangabe 1 -> hoch 0 -> runter
+           o_MOTOR_EN : out  STD_LOGIC := '0'; --Motor an/aus
+           o_DOOR_DIR : out  STD_LOGIC := '1'; --Tür richtung 1 -> schließen , 0 -> öffnen
+           o_DOOR_EN : out  STD_LOGIC := '0'); --Tür öffnen/schließen
 end TOP;
 
 architecture Behavioral of TOP is
 
 
-
+--SPIModue
 COMPONENT SLAVE_TOP
 PORT(
      CLK     : IN  std_logic;
@@ -62,7 +62,7 @@ PORT(
       o_ERR   : OUT std_logic );
     END COMPONENT;
 
-
+--Watchdogtimer
 COMPONENT Watchthedogtop is
     Port ( VALUE : in  STD_LOGIC_VECTOR (7 downto 0);
            LOAD : in  STD_LOGIC;
@@ -84,7 +84,7 @@ type STATE_TYPE is(drive_up, drive_down, stay);
 signal STATE, NEXT_ST: STATE_TYPE;
 
 type STATE_DOOR is(door_opening, door_closing, door_open, door_shut);
-signal DOOR,NEXT_DOOR: STATE_DOOR;
+signal DOOR, NEXT_DOOR: STATE_DOOR;
 
 
 begin
@@ -118,35 +118,27 @@ begin
 	process(CLK)
 	begin
 		REQUEST <= i_REQ_EXT or i_REQ_INT; --Auf ein "SIGNAL" bringen !
-	
-		--TO-DO: RICHTIGES LADEN DER VALUE
-		--if(i_RST  <= '1' and STRB = '1') then    --RESET IST AN HIER IST ZEIT UM DIE VALUES ZU LADEN (HOFFENTLICH!)
-			--		DATA_BUS <= o_DATA; --__WERDEN DIE DATEN VON ALLEINE GELADEN in o_DATA durch die Verdahrunt oder muss das 
-					--selber getan werden? 
-		--end if;
+
+		if(i_RST = '1') then
+			STATE <= stay;
+			DOOR <= door_shut;
+			RELOAD <= '1';
+		end if;
 	end process;
 end block init;
 	
 
 Takt_teilung: block
 
-signal SR : std_logic_vector(5 downto 0);
-
+signal SR : std_logic_vector(31 downto 0) := x"FFFF0000"; -- "11111111111111110000000000000000";
 begin
 	process(CLK)
 	begin
 		if rising_edge(CLK) then
 
-----------------------TEILUNG DES TAKTES UM 32
-			SR <= SR(4 downto 0) & CLK; --Clk nachschieben
-			
-			if(SR(4) = '1' and SR(5) = '0') then --die 1 kommt, daher steigend
-				CLK_DOG <= '1';
-			end if;
+			SR <= SR(SR'left-1 downto 0) & SR(SR'left);
+			CLK_DOG <= SR(31);				
 		
-			if(SR(4) = '0' and SR(5) = '1') then
-				CLK_DOG <= '0';
-			end if;
 		
 		end if;
 	end process;
@@ -157,99 +149,78 @@ zustandsautomat: block
 
 signal STAY_TRUE: STD_LOGIC := '1'; --Initialisiert darauf, dass der Fahrstuhl am Anfang im Stilltstand ist
 begin
-
---ZUSTANDSAUTOMAT  --muss noch definiert werden wann er überhaupt in das ding reinp
---springen kann, also den init
-
---I_POS setzt immer nur ein Bit!
-Drive: process(REQUEST)
+Drive: process(REQUEST,CLK)
 begin
 
+	if rising_edge(CLK) then
 	case STATE is
 		
 		
-								  --würde gehen, wenn es nur einmalige Anforderung gebe!
-		when drive_up => if(REQUEST > i_POS) then NEXT_ST <= drive_up; 
-				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; 
-				
-				STAY_TRUE <= '1'; --vom hochfahren in den Stillstand
+		when drive_up => if(REQUEST > i_POS) then NEXT_ST <= drive_up;  STAY_TRUE <= '0';
+				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay;  STAY_TRUE <= '1'; --vom hochfahren in den Stillstand
 				
 		end if; --weiter hoch fahren beim hoch fahren
  		
-		when drive_down => if(REQUEST < i_POS) then NEXT_ST <= drive_down;  --weiter runter fahren beim runter fahren
-			elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; 
+		when drive_down => if(REQUEST < i_POS) then NEXT_ST <= drive_down;  STAY_TRUE <= '0';--weiter runter fahren beim runter fahren
+			elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; STAY_TRUE <= '1';
 		end if;
 			
 		--WAS IST WENN EINE ANFRAGE VON UNTEN/OBEN KOMMT ABER GLEICHZEITIG SOLL WEITERHIN NOCH OFFEN BLEIBEN
-		when stay => if ((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; --stehen bleiben beim stehen bleiben
-						  elsif(REQUEST < i_POS) then NEXT_ST <= drive_up; --von stehen bleiben zu hoch fahren
-							elsif(REQUEST < i_POS) then NEXT_ST <= drive_down; --von stehen bleiben zu runter fahren
-		
+		when stay => if ((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; STAY_TRUE <= '1';--stehen bleiben beim stehen bleiben
+						  elsif(REQUEST < i_POS) then NEXT_ST <= drive_up; STAY_TRUE <= '0';
+						  elsif(REQUEST > i_POS) then NEXT_ST <= drive_down; STAY_TRUE <= '0';--von stehen bleiben zu hoch fahren	
 		end if;
 	
 	
 	end case;
+	end if;
 end process;
 
+dooring: process(STAY_TRUE,CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
 
---Zustandsautomat 2 für die Tür
-
---type STATE_DOOR is(door_openening, door_closing, door_open);
---signal DOOR,NEXT_DOOR: STATE_DOOR;
-
-door: process(STAY_TRUE) --jedesmal wenn der STATE sich ändert hier rein gehen
-
+--DOOR_STAT ANPASSEN
 begin
+		if rising_edge(CLK) then
 		if(STAY_TRUE = '1') then --Wenn Fahrstuhl im zustand STILLSTEHEND
 			case DOOR is
-			
-				when door_shut => if((REQUEST and i_POS) = i_POS) then NEXT_DOOR <= door_opening;
-										else NEXT_DOOR <= door_shut;
+		   
+				
+				when door_opening => if(i_DOOR_STAT = "01") then NEXT_DOOR <= door_open;
+											else NEXT_DOOR <= door_opening;
+				
 				end if;
 				
-				when door_opening => if(i_DOOR_STAT = "00") then NEXT_DOOR <= door_open;
+				when door_open		=> if(((REQUEST and i_POS) /= i_POS) and DOG_OUT = '1') then NEXT_DOOR <= door_closing;
+											elsif((REQUEST and i_POS) = i_POS) then NEXT_DOOR <= door_opening;
 											else NEXT_DOOR <= door_open;
 				
 				end if;
-				when door_open		=> if(((REQUEST and i_POS) /= i_POS) and DOG_OUT = '1') then NEXT_DOOR <= door_closing;
-											elsif((REQUEST and i_POS) = i_POS) then NEXT_DOOR <= door_opening;
-				
-				end if;
-				when door_closing => if(i_DOOR_STAT = "00") then NEXT_DOOR <= door_shut;
+				when door_closing => if(i_DOOR_STAT = "10") then NEXT_DOOR <= door_shut;
 											else NEXT_DOOR <= door_closing;
 				end if;
+	
+				
+				when door_shut => if((REQUEST and i_POS) = i_POS) then NEXT_DOOR <= door_opening;
+										else NEXT_DOOR <= door_shut;
+				end if;
+	
 	
 			end case;
 
 		end if;
-		
+		end if;
 end process;
-
-
-
-
--- o_MOTOR_DIR : out  STD_LOGIC; --Richtungsangabe 1 -> hoch 0 -> runter
--- o_MOTOR_EN : in  STD_LOGIC; --Motor an/aus
-
-
 
 
 --MOTORSTEUERUNG AUFZUG
 DRIVE_RES: process(STATE)
 begin
 	case STATE is
-				when stay => o_MOTOR_EN <= '0';
-				when drive_up => o_MOTOR_DIR <= '1'; o_MOTOR_EN <= '1';
-				when drive_down => o_MOTOR_DIR <= '0'; o_MOTOR_EN <= '0';
+				when stay => o_MOTOR_EN <= '0'; --Motor aus
+				when drive_up => o_MOTOR_DIR <= '1'; o_MOTOR_EN <= '1'; --Motor hoch; Motor an;
+				when drive_down => o_MOTOR_DIR <= '0'; o_MOTOR_EN <= '1'; --Motor runter; Motor an;
 		end case;
 end process;
-
-
---MOTORSTEUERUNG TÜR
---type STATE_DOOR is(door_openening, door_closing, door_open, door_shut);
--- o_DOOR_DIR : in  STD_LOGIC; --Tür richtung 1 -> schließen , 0 -> öffnen
--- o_DOOR_EN : in  STD_LOGIC); --Tür öffnen/schließen
-
 
 
 DRIVE_DOOR: process(DOOR)
@@ -257,10 +228,10 @@ DRIVE_DOOR: process(DOOR)
 
 begin
 	case DOOR is
-		when door_shut => o_DOOR_EN <= '0';
-		when door_open => o_DOOR_EN <= '0';
-		when door_opening => o_DOOR_DIR <= '1'; o_DOOR_EN <= '1';
-		when door_closing => o_DOOR_DIR <= '0'; o_DOOR_EN <= '1';
+		when door_shut => o_DOOR_EN <= '0'; --Türmotor aus
+		when door_open => o_DOOR_EN <= '0'; --Türmotor aus
+		when door_opening => o_DOOR_DIR <= '0'; o_DOOR_EN <= '1'; --Tür öffnen; --Türmotor anmachen
+		when door_closing => o_DOOR_DIR <= '1'; o_DOOR_EN <= '1'; --Tür öffnen; --Türmotor anmachen
 		end case;
 end process;
 end block zustandsautomat;
@@ -273,19 +244,20 @@ Tuer: block
 begin
 	process(CLK)
 	begin
------------------------TÜR ZU/AUF MACHEN
 		
+		if rising_edge(CLK) then
 --TÜR SCHLIESSEN NACH BESTIMMTER ZEIT
 		if(i_DOOR_STAT = "00") then --wenn Tür offe
-				RELOAD <= '1'; --Neuladen des Watchdogtimers
+				RELOAD <= '0'; --Neuladen des Watchdogtimers
 				
 				if(DOG_OUT = '1') then --Watchdogtimer abgelaufen
 					o_DOOR_DIR <= '0'; --Tür schließene
 					o_DOOR_EN <= '0';
+					RELOAD <= '1';
 				end if;
 			
 		end if;
-
+	end if;
 	end process;
 end block Tuer;
 
