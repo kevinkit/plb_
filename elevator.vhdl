@@ -41,10 +41,10 @@ entity TOP is
            i_DOOR_STAT : in  STD_LOGIC_VECTOR (1 downto 0); --TürStatus "00" -> In bewegung, "10" geschlossen, "01" offen
            i_RST : in  STD_LOGIC; --Resetsignal - beim einschalten kurzzeiteig auf 1 __WIESO?
            CLK : in  STD_LOGIC; -- Systemtakt: 1MHz
-           o_MOTOR_DIR : out  STD_LOGIC := '1'; --Richtungsangabe 1 -> hoch 0 -> runter
-           o_MOTOR_EN : out  STD_LOGIC := '0'; --Motor an/aus
-           o_DOOR_DIR : out  STD_LOGIC := '1'; --Tür richtung 1 -> schließen , 0 -> öffnen
-           o_DOOR_EN : out  STD_LOGIC := '0'); --Tür öffnen/schließen
+           o_MOTOR_DIR : out  STD_LOGIC;--- := '1'; --Richtungsangabe 1 -> hoch 0 -> runter
+           o_MOTOR_EN : out  STD_LOGIC; --:= '0'; --Motor an/aus
+           o_DOOR_DIR : out  STD_LOGIC;--- := '1'; --Tür richtung 1 -> schließen , 0 -> öffnen
+           o_DOOR_EN : out  STD_LOGIC);--- := '0'); --Tür öffnen/schließen
 end TOP;
 
 architecture Behavioral of TOP is
@@ -115,15 +115,28 @@ port map(
 
 init: block
 begin
-	process(CLK)
+	process(CLK,i_RST)
 	begin
-		REQUEST <= i_REQ_EXT or i_REQ_INT; --Auf ein "SIGNAL" bringen !
-
+	
 		if(i_RST = '1') then
 			STATE <= stay;
 			DOOR <= door_shut;
 			RELOAD <= '1';
+		elsif rising_edge(CLK) then
+			
+			REQUEST <= i_REQ_EXT or i_REQ_INT; --Auf ein "SIGNAL" bringen !
+			STATE <= NEXT_ST;
+			DOOR <= NEXT_DOOR;
+		
 		end if;
+		if rising_edge(CLK) then
+
+
+		elsif(i_RST = '1') then
+			
+		end if;
+		
+		
 	end process;
 end block init;
 	
@@ -145,30 +158,35 @@ begin
 end block Takt_teilung;
 
 
+
+
+
+
+
 zustandsautomat: block
 
-signal STAY_TRUE: STD_LOGIC := '1'; --Initialisiert darauf, dass der Fahrstuhl am Anfang im Stilltstand ist
 begin
 Drive: process(REQUEST,CLK)
 begin
 
 	if rising_edge(CLK) then
+		
+	
 	case STATE is
 		
 		
-		when drive_up => if(REQUEST > i_POS) then NEXT_ST <= drive_up;  STAY_TRUE <= '0';
-				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay;  STAY_TRUE <= '1'; --vom hochfahren in den Stillstand
+		when drive_up => if(REQUEST > i_POS) then NEXT_ST <= drive_up;  
+				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay;  --vom hochfahren in den Stillstand
 				
 		end if; --weiter hoch fahren beim hoch fahren
  		
-		when drive_down => if(REQUEST < i_POS) then NEXT_ST <= drive_down;  STAY_TRUE <= '0';--weiter runter fahren beim runter fahren
-			elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; STAY_TRUE <= '1';
+		when drive_down => if(REQUEST < i_POS) then NEXT_ST <= drive_down;  --weiter runter fahren beim runter fahren
+			elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; 
 		end if;
 			
-		--WAS IST WENN EINE ANFRAGE VON UNTEN/OBEN KOMMT ABER GLEICHZEITIG SOLL WEITERHIN NOCH OFFEN BLEIBEN
-		when stay => if ((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; STAY_TRUE <= '1';--stehen bleiben beim stehen bleiben
-						  elsif(REQUEST < i_POS) then NEXT_ST <= drive_up; STAY_TRUE <= '0';
-						  elsif(REQUEST > i_POS) then NEXT_ST <= drive_down; STAY_TRUE <= '0';--von stehen bleiben zu hoch fahren	
+		when stay => if ((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; --stehen bleiben beim stehen bleiben
+						  elsif(REQUEST < i_POS) then NEXT_ST <= drive_down; 
+						  elsif(REQUEST > i_POS) then NEXT_ST <= drive_up;--von stehen bleiben zu hoch fahren	
 		end if;
 	
 	
@@ -176,17 +194,19 @@ begin
 	end if;
 end process;
 
-dooring: process(STAY_TRUE,CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
+dooring: process(CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
 
 --DOOR_STAT ANPASSEN
 begin
 		if rising_edge(CLK) then
-		if(STAY_TRUE = '1') then --Wenn Fahrstuhl im zustand STILLSTEHEND
+	
+		
+	--if(STAY_TRUE = '1') then --Wenn Fahrstuhl im zustand STILLSTEHEND
 			case DOOR is
 		   
 				
-				when door_opening => if(i_DOOR_STAT = "01") then NEXT_DOOR <= door_open;
-											else NEXT_DOOR <= door_opening;
+				when door_opening => if(i_DOOR_STAT = "01") then NEXT_DOOR <= door_open; --Offen erreicht
+											elsif(i_DOOR_STAT = "00") then NEXT_DOOR <= door_opening;
 				
 				end if;
 				
@@ -195,71 +215,53 @@ begin
 											else NEXT_DOOR <= door_open;
 				
 				end if;
+				
 				when door_closing => if(i_DOOR_STAT = "10") then NEXT_DOOR <= door_shut;
-											else NEXT_DOOR <= door_closing;
+											elsif(i_DOOR_STAT = "00") then NEXT_DOOR <= door_closing;
 				end if;
 	
-				
+				--hier fehlt: zu door closing zu gehen!
 				when door_shut => if((REQUEST and i_POS) = i_POS) then NEXT_DOOR <= door_opening;
+										elsif(((REQUEST and i_POS) /= i_POS) and DOG_OUT = '1') then NEXT_DOOR <= door_closing;
 										else NEXT_DOOR <= door_shut;
 				end if;
 	
 	
 			end case;
 
-		end if;
+	--	end if;
 		end if;
 end process;
 
 
 --MOTORSTEUERUNG AUFZUG
-DRIVE_RES: process(STATE)
+DRIVE_RES: process(STATE,CLK)
 begin
+	if rising_edge(CLK) then
 	case STATE is
-				when stay => o_MOTOR_EN <= '0'; --Motor aus
-				when drive_up => o_MOTOR_DIR <= '1'; o_MOTOR_EN <= '1'; --Motor hoch; Motor an;
+				when stay => o_MOTOR_EN <= '0';  --Motor aus
+				when drive_up => o_MOTOR_DIR <= '1'; o_MOTOR_EN <= '1';--Motor hoch; Motor an;
 				when drive_down => o_MOTOR_DIR <= '0'; o_MOTOR_EN <= '1'; --Motor runter; Motor an;
 		end case;
+	end if;
 end process;
 
 
-DRIVE_DOOR: process(DOOR)
+DRIVE_DOOR: process(DOOR,CLK)
 
 
 begin
+
+	if rising_edge(CLK) then
 	case DOOR is
-		when door_shut => o_DOOR_EN <= '0'; --Türmotor aus
-		when door_open => o_DOOR_EN <= '0'; --Türmotor aus
+		when door_shut => o_DOOR_EN <= '0'; RELOAD <= '1';--Türmotor aus
+		when door_open => o_DOOR_EN <= '0'; RELOAD <= '0';--Türmotor aus
 		when door_opening => o_DOOR_DIR <= '0'; o_DOOR_EN <= '1'; --Tür öffnen; --Türmotor anmachen
 		when door_closing => o_DOOR_DIR <= '1'; o_DOOR_EN <= '1'; --Tür öffnen; --Türmotor anmachen
 		end case;
+	end if;
 end process;
 end block zustandsautomat;
-
-
-
---Kümmert sich um den zeitlichen Ablauf
-Tuer: block
-	
-begin
-	process(CLK)
-	begin
-		
-		if rising_edge(CLK) then
---TÜR SCHLIESSEN NACH BESTIMMTER ZEIT
-		if(i_DOOR_STAT = "00") then --wenn Tür offe
-				RELOAD <= '0'; --Neuladen des Watchdogtimers
-				
-				if(DOG_OUT = '1') then --Watchdogtimer abgelaufen
-					o_DOOR_DIR <= '0'; --Tür schließene
-					o_DOOR_EN <= '0';
-					RELOAD <= '1';
-				end if;
-			
-		end if;
-	end if;
-	end process;
-end block Tuer;
 
 
 
