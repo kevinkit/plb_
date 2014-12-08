@@ -129,13 +129,6 @@ begin
 			DOOR <= NEXT_DOOR;
 		
 		end if;
-		if rising_edge(CLK) then
-
-
-		elsif(i_RST = '1') then
-			
-		end if;
-		
 		
 	end process;
 end block init;
