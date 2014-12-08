@@ -129,6 +129,13 @@ begin
 			DOOR <= NEXT_DOOR;
 		
 		end if;
+		if rising_edge(CLK) then
+
+
+		elsif(i_RST = '1') then
+			
+		end if;
+		
 		
 	end process;
 end block init;
@@ -171,13 +178,14 @@ begin
 		when drive_up => if(REQUEST > i_POS) then NEXT_ST <= drive_up;  
 				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay;
 				elsif(REQUEST = "0000") then NEXT_ST <= stay;--vom hochfahren in den Stillstand
-				
+				else NEXT_ST <= drive_down;
 		end if; --weiter hoch fahren beim hoch fahren
  		
 		when drive_down => if(REQUEST < i_POS) then NEXT_ST <= drive_down;  --weiter runter fahren beim runter fahren
 			elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; 
 			
 				elsif(REQUEST = "0000") then NEXT_ST <= stay;
+				else NEXT_ST <= drive_up;
 		end if;
 			
 		when stay => if ((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; --stehen bleiben beim stehen bleiben
@@ -192,7 +200,7 @@ begin
 	end if;
 end process;
 
-dooring: process(i_DOOR_STAT, i_POS, DOOR,CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
+dooring: process(REQUEST, i_DOOR_STAT, i_POS, DOOR,CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
 
 --DOOR_STAT ANPASSEN
 begin
