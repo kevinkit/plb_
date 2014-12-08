@@ -166,7 +166,7 @@ end block Takt_teilung;
 zustandsautomat: block
 
 begin
-Drive: process(REQUEST,CLK)
+Drive: process(i_POS,STATE,REQUEST,CLK)
 begin
 
 	if rising_edge(CLK) then
@@ -176,17 +176,22 @@ begin
 		
 		
 		when drive_up => if(REQUEST > i_POS) then NEXT_ST <= drive_up;  
-				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay;  --vom hochfahren in den Stillstand
+				elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay;
+				elsif(REQUEST = "0000") then NEXT_ST <= stay;--vom hochfahren in den Stillstand
 				
 		end if; --weiter hoch fahren beim hoch fahren
  		
 		when drive_down => if(REQUEST < i_POS) then NEXT_ST <= drive_down;  --weiter runter fahren beim runter fahren
 			elsif((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; 
+			
+				elsif(REQUEST = "0000") then NEXT_ST <= stay;
 		end if;
 			
 		when stay => if ((REQUEST and i_POS) = i_POS) then NEXT_ST <= stay; --stehen bleiben beim stehen bleiben
 						  elsif(REQUEST < i_POS) then NEXT_ST <= drive_down; 
 						  elsif(REQUEST > i_POS) then NEXT_ST <= drive_up;--von stehen bleiben zu hoch fahren	
+							
+				elsif(REQUEST = "0000") then NEXT_ST <= stay;
 		end if;
 	
 	
@@ -194,7 +199,7 @@ begin
 	end if;
 end process;
 
-dooring: process(CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
+dooring: process(i_DOOR_STAT, i_POS, DOOR,CLK) --jedesmal wenn der STATE sich ändert hier rein gehen
 
 --DOOR_STAT ANPASSEN
 begin
