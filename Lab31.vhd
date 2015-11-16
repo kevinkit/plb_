@@ -53,7 +53,7 @@ if rising_edge(CLK) then
 		tmp_sr10 <= not tmp_sr10;
 	end if;
 
-	tmp_sr5 <= SR_5(SR_5'left); 	 --tmpsr5 ist um einen Takt verzögert, kann dann später vorodert werden!
+	tmp_sr5 <= SR_5(SR_5'left); 	 
 end if;
 end process SR16;
 o_CLKDIV2 <= CLK2;
