@@ -1,16 +1,15 @@
 ----------------------------------------------------------------------------------
 -- Company: 
--- Engineer:Niat ogbe & kevin Höfle
+-- Engineer: 
 -- 
--- Create Date:    15:45:07 11/13/2014 
+-- Create Date:    22:32:47 11/15/2015 
 -- Design Name: 
--- Module Name:    Watchthedogtop - Behavioral 
+-- Module Name:    watchdog - Behavioral 
 -- Project Name: 
 -- Target Devices: 
 -- Tool versions: 
 -- Description: 
--- Watchdog Timer. Increments a value in CNT_CLKS steps, o_RESET is LOW when everything is good otherwise HIGH. 
---ENABLE LOAD to initialze VALUE as the value which will be incremented
+--
 -- Dependencies: 
 --
 -- Revision: 
@@ -30,49 +29,31 @@ use IEEE.NUMERIC_STD.ALL;
 --library UNISIM;
 --use UNISIM.VComponents.all;
 
-entity Watchthedogtop is
+entity watchdog is
     Port ( VALUE : in  STD_LOGIC_VECTOR (7 downto 0);
            LOAD : in  STD_LOGIC;
            CNT_CLK : in  STD_LOGIC;
            CLK : in  STD_LOGIC;
            o_RESET : out  STD_LOGIC);
-end Watchthedogtop;
+end watchdog;
 
-architecture Behavioral of Watchthedogtop is
-
-signal cnt_value: unsigned(7 downto 0);
-signal SR: std_logic_vector(1 downto 0) := "00";
+architecture Behavioral of watchdog is
+signal V: unsigned(7 downto 0):= "11111111";
+signal clk_tmp: std_logic := '0';
 begin
-
-
-WATCH: process(CLK)
+count: process(CLK,LOAD)
 begin
-
-	if(LOAD = '1') then
-	cnt_value <= unsigned(VALUE);
-	else
-	cnt_value <= cnt_value;
-	end if;
-	
-
-	if rising_edge(CLK) then
-	SR <= SR(SR'left-1) & CNT_CLK;
-	
-	 if(LOAD = '0' and cnt_value /= "00000000") then 
-		if(SR(0) = '0' and SR(1) = '1') then
-			cnt_value <= cnt_value - 1;
+if LOAD = '1' then
+	V <= unsigned(VALUE);
+elsif rising_edge(CLK) then
+	if clk_tmp = '0' and CNT_CLK = '1' then --rising edge
+		if V /= "00000000" then
+			V <= V -1; 
 		end if;
-		
-	 end if;
-	
-	
-	
-	
 	end if;
-
-end process watch;
-
-o_RESET <= '1' when cnt_value = "00000000" else '0';
-
+	clk_tmp <= CNT_CLK;
+end if;
+end process count;
+o_RESET <= not std_logic(((V(7) or V(6)) or (V(5) or V(4))) or ((V(3) or V(2))or (V(1) or V(0))));
 end Behavioral;
 
