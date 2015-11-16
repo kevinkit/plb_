@@ -38,7 +38,7 @@ end counter;
 
 architecture Behavioral of counter is
 signal CLK2: std_logic := '0';
-signal SR_5: std_logic_vector(9 downto 0) := "1111100000";
+signal SR_5: std_logic_vector(4 downto 0) := "11100";
 signal tmp_sr5: std_logic := '0';
 signal tmp_sr10: std_logic := '0';
 begin
@@ -46,29 +46,18 @@ begin
 SR16: process(CLK)
 begin
 if rising_edge(CLK) then
-	
-	--Verzögerung für CLk2 --> Duty Cycle 50% --> 1 Flip Flop reicht
-	if CLK2 = '0' then
-		CLK2 <= '1';
-	else
-		CLK2 <= '0';
+	CLK2 <= not CLK2; --eine einfache Invertierung tuts auch!
+
+	SR_5 <= SR_5(SR_5'left-1 downto 0) & SR_5(SR_5'left);
+	if tmp_sr5 = '0' and SR_5(SR_5'left) = '1' then 	--rising edge
+		tmp_sr10 <= not tmp_sr10;
 	end if;
 
-	SR_5 <= SR_5(SR_5'left-1 downto 0) & SR_5(9);
-	tmp_sr5 <= SR_5(9); 	 --tmpsr5 ist um einen Takt verzögert
-
-	if tmp_sr5 = '0' and SR_5(9) = '1' then 	--rising edge
-		if tmp_sr10 = '0' then
-			tmp_sr10 <= '1';
-		else
-			tmp_sr10 <= '0';
-		end if;
-	end if;
-	
+	tmp_sr5 <= SR_5(SR_5'left); 	 --tmpsr5 ist um einen Takt verzögert, kann dann später vorodert werden!
 end if;
 end process SR16;
 o_CLKDIV2 <= CLK2;
-o_CLKDIV5 <= SR_5(9) or tmp_SR5;
+o_CLKDIV5 <= tmp_sr5;
 o_CLKDIV10 <= tmp_sr10;
 end Behavioral;
 
