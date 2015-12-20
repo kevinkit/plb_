@@ -1,0 +1,35 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+-- Versuch JK-Flip-Flop zu basteln
+
+entity Labor1_JK is
+    Port ( J : in  STD_LOGIC;
+           K : in  STD_LOGIC;
+           CLK : in  STD_LOGIC;
+           Q : out  STD_LOGIC;
+           Q_not : out  STD_LOGIC);
+end Labor1_JK;
+
+architecture Behavioral of Labor1_JK is
+
+signal Q_save: std_logic;
+
+begin
+JK: process(CLK)
+begin
+if rising_edge(CLK) then
+	if J = '1' then
+		Q_save<= J;
+	elsif K = '1' then
+		Q_save <= J;
+	end if;
+	if (J and K) = '1' then
+		Q_save <= not Q_save;
+	end if;
+end if;
+end process JK;
+Q <= Q_save;
+Q_not <= not Q_save;
+end Behavioral;
+
