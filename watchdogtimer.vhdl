@@ -2,9 +2,9 @@
 -- Company: 
 -- Engineer: 
 -- 
--- Create Date:    22:32:47 11/15/2015 
+-- Create Date:    15:25:33 01/03/2016 
 -- Design Name: 
--- Module Name:    watchdog - Behavioral 
+-- Module Name:    PWMmOD - Behavioral 
 -- Project Name: 
 -- Target Devices: 
 -- Tool versions: 
@@ -29,31 +29,36 @@ use IEEE.NUMERIC_STD.ALL;
 --library UNISIM;
 --use UNISIM.VComponents.all;
 
-entity watchdog is
-    Port ( VALUE : in  STD_LOGIC_VECTOR (7 downto 0);
-           LOAD : in  STD_LOGIC;
+entity PWMmOD is
+    Port ( LOAD : in  STD_LOGIC;
+           VALUE : in  STD_LOGIC_VECTOR (7 downto 0);
            CNT_CLK : in  STD_LOGIC;
            CLK : in  STD_LOGIC;
            o_RESET : out  STD_LOGIC);
-end watchdog;
+end PWMmOD;
 
-architecture Behavioral of watchdog is
-signal V: unsigned(7 downto 0):= "11111111";
-signal clk_tmp: std_logic := '0';
+architecture Behavioral of PWMmOD is
+
+signal V: unsigned(7 downto 0) := "00000000";
+signal CNT_CLK_old: std_logic;
+signal T1: std_logic;
 begin
-count: process(CLK,LOAD)
+WATCH: process(CLK,LOAD) --muss VALUE hier auch in die empfindlichkeitsliste? 
 begin
 if LOAD = '1' then
 	V <= unsigned(VALUE);
+	T1 <= not LOAD;
 elsif rising_edge(CLK) then
-	if clk_tmp = '0' and CNT_CLK = '1' then --rising edge
-		if V /= "00000000" then
-			V <= V -1; 
+	CNT_CLK_old <= CNT_CLK;
+	if CNT_CLK_old = '0' and CNT_CLK = '1' then --rising edge
+		if V = 0 then
+			T1 <= not LOAD;
+		else
+			V <= V - 1;
 		end if;
 	end if;
-	clk_tmp <= CNT_CLK;
 end if;
-end process count;
-o_RESET <= not std_logic(((V(7) or V(6)) or (V(5) or V(4))) or ((V(3) or V(2))or (V(1) or V(0))));
+end process WATCH;
+o_RESET <= T1;
 end Behavioral;
 
