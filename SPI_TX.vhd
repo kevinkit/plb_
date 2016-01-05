@@ -49,6 +49,8 @@ signal cnt: unsigned(6 downto 0) := "0000000"; --used for clk div 64
 signal o_SPI_CLK_TMP: std_logic := '0'; 
 signal DATA: std_logic_vector(7 downto 0) := "00000000"; --holds the data
 signal BUSY_TMP: std_logic := '0';
+signal DATA_SAVE: std_logic_vector(7 downto 0) := "00000000";
+signal LOCK: std_logic := '0';
 begin
 SPI_RX: process(CLK)
 begin
@@ -57,18 +59,32 @@ if rising_edge(CLK) then
 	if RST = '1' then
 		o_SPI_CS_TMP <= "1111";
 		BUSY_TMP <= '0';
+		LOCK <= '0';
 	else
-		cnt <= cnt + 1; --counter für Clk Divider
+		cnt <= cnt + 1; --counterfor Clk Divider
 		o_SPI_CLK_TMP <= cnt(6); 
 		
 		
 		if BUSY_TMP = '1' then
+			if LOCK = '0' then
+				DATA <= DATA_SAVE;
+				DATA_SAVE <= "00000000";
+				LOCK <= not LOCK; --lock the part
+			end if;
 			if o_SPI_CLK_TMP = '1' and cnt(6) = '0' then
 				DATA <= DATA(DATA'left -1 downto 0) & '0'; --shift out the data
 				DATA_TMP <= DATA(DATA'left);
-				if DATA = "00000000" then
+				if DATA = "00000000" and DATA_SAVE = "00000000" then
 					BUSY_TMP <= '0';
+					LOCK <= not LOCK; --free the part if no data is in the buffer anymore and
+											--and no data was recieved during the send
+				elsif DATA = "00000000" and DATA_SAVE /= "00000000" then
+					LOCK <= not LOCK;
 				end if;
+			end if;
+		
+			if i_STRB = '1' then --data may come in during send
+				DATA_SAVE <= i_DATA;
 			end if;
 		end if;
 		
@@ -79,8 +95,8 @@ if rising_edge(CLK) then
 			o_SPI_CS_TMP(2) <=  i_ADDR(0) or not i_ADDR(1);
 			o_SPI_CS_TMP(1) <=  not i_ADDR(0) or i_ADDR(1);
 			o_SPI_CS_TMP(0) <= i_ADDR(0) or i_ADDR(1);
-			DATA <= i_DATA;
-			BUSY_TMP <= '1'; --nachdem die Daten angekommen sind, ist es busy!
+			DATA_SAVE <= i_DATA;
+			BUSY_TMP <= '1'; --nachdem die Daten angekommen sind, ist es busy!			
 		end if;
 		
 		
